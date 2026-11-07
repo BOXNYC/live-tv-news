@@ -16,6 +16,8 @@ interface MainStageProps {
   controlsHidden: boolean;
   /** PiP tiles are docked at the bottom: keep the controls clear of them. */
   hasPip: boolean;
+  /** Minimized PiPs are collapsed into a tab in the bottom-right corner: keep the controls clear of it. */
+  hasPipTab: boolean;
 }
 
 type WebkitVideo = HTMLVideoElement & { webkitEnterFullscreen?: () => void };
@@ -28,6 +30,7 @@ export function MainStage({
   onAutoplayBlocked,
   controlsHidden,
   hasPip,
+  hasPipTab,
 }: MainStageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
@@ -62,6 +65,7 @@ export function MainStage({
       return createPortal(
         <div
           data-pip={hasPip}
+          data-pip-tab={hasPipTab}
           className={`stage-bottom absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 bg-gradient-to-t from-black/75 via-black/35 to-transparent pt-20 transition-opacity duration-500 ease-out motion-reduce:transition-none ${
             controlsHidden ? "opacity-0" : "opacity-100"
           }`}
@@ -124,7 +128,7 @@ export function MainStage({
         overlayHost,
       );
     },
-    [stream, overlayHost, controlsHidden, hasPip, providerName, muted, onToggleMute, toggleFullscreen, isFullscreen],
+    [stream, overlayHost, controlsHidden, hasPip, hasPipTab, providerName, muted, onToggleMute, toggleFullscreen, isFullscreen],
   );
 
   return (

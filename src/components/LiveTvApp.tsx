@@ -50,6 +50,9 @@ export function LiveTvApp() {
   const pipStreams = player.pip
     .map((id) => streamsById.get(id))
     .filter((s): s is ResolvedStream => !!s);
+  const minimizedSet = new Set(player.minimized);
+  const tileStreams = pipStreams.filter((s) => !minimizedSet.has(s.id));
+  const minimizedStreams = pipStreams.filter((s) => minimizedSet.has(s.id));
   const selectedProvider: ProviderId =
     tabOverride ?? active?.providerId ?? catalog?.providers[0]?.id ?? "nbc";
   const activeProvider = catalog?.providers.find((p) => p.id === active?.providerId) ?? null;
@@ -64,6 +67,8 @@ export function LiveTvApp() {
     [streamsById],
   );
   const close = useCallback((id: string) => dispatch({ type: "close", id }), []);
+  const minimize = useCallback((id: string) => dispatch({ type: "minimize", id }), []);
+  const restore = useCallback((id: string) => dispatch({ type: "restore", id }), []);
   const toggleMute = useCallback(() => setAudioOn((on) => !on), []);
   const onAutoplayBlocked = useCallback(() => setAudioOn(false), []);
 
@@ -117,7 +122,8 @@ export function LiveTvApp() {
           onToggleMute={toggleMute}
           onAutoplayBlocked={onAutoplayBlocked}
           controlsHidden={idle}
-          hasPip={pipStreams.length > 0}
+          hasPip={tileStreams.length > 0}
+          hasPipTab={minimizedStreams.length > 0}
         />
       )}
 
@@ -151,7 +157,16 @@ export function LiveTvApp() {
         )}
       </AppHeader>
 
-      {catalog && <PipStack streams={pipStreams} onPromote={promote} onClose={close} />}
+      {catalog && (
+        <PipStack
+          streams={tileStreams}
+          minimized={minimizedStreams}
+          onPromote={promote}
+          onClose={close}
+          onMinimize={minimize}
+          onRestore={restore}
+        />
+      )}
     </div>
   );
 }

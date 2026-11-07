@@ -11,6 +11,7 @@
   --pip-gap: 0.75rem;
   --pip-w: 9rem;
   --pip-h: calc(var(--pip-w) * 9 / 16);
+  --pip-tab-h: 2.25rem;
 }
 
 @media (width >= 40rem) {
@@ -97,7 +98,13 @@ body {
   }
 }
 
+/* Only the minimized-PiP tab is docked (no tiles): clear its height in the bottom-right corner. */
+.stage-bottom[data-pip="false"][data-pip-tab="true"] {
+  padding-bottom: calc(env(safe-area-inset-bottom) + var(--pip-tab-h) + var(--pip-gap) * 2);
+}
+
 /* PiP tiles are outside the stage, so in browser fullscreen the controls can use the corners. */
+.stage:fullscreen .stage-bottom[data-pip-tab="true"],
 .stage:fullscreen .stage-bottom[data-pip="true"] {
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
   padding-right: max(1rem, env(safe-area-inset-right));
