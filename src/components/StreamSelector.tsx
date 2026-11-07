@@ -1,6 +1,7 @@
 "use client";
 
 import type { ProviderCatalog, ProviderId } from "@/lib/streams/types";
+import { ProviderBadge } from "./ProviderBadge";
 
 interface StreamSelectorProps {
   providers: ProviderCatalog[];
@@ -43,11 +44,17 @@ export function StreamSelector({
               aria-selected={selected}
               aria-controls={`panel-${p.id}`}
               onClick={() => onSelectProvider(p.id)}
-              className={`relative flex-1 rounded-lg px-4 py-2 text-sm font-bold tracking-wide transition focus-visible:outline-2 focus-visible:outline-red-500 sm:flex-none sm:px-6 ${
+              className={`group relative flex flex-1 items-center justify-center rounded-lg px-4 py-1.5 text-sm font-bold tracking-wide transition focus-visible:outline-2 focus-visible:outline-red-500 sm:flex-none sm:px-6 ${
                 selected ? "bg-white text-zinc-950 shadow" : "text-zinc-400 hover:bg-white/10 hover:text-white"
               }`}
             >
-              {p.name}
+              <ProviderBadge
+                providerId={p.id}
+                size="lg"
+                decorative
+                className={selected ? "" : "opacity-70 transition group-hover:opacity-100"}
+              />
+              <span className="sr-only">{p.name}</span>
               {live && (
                 <span
                   className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-red-500"
