@@ -124,3 +124,14 @@ body {
     left: auto;
   }
 }
+
+/* "Now playing" equalizer bars in the PiP list. */
+@keyframes eq {
+  0%,
+  100% {
+    height: 30%;
+  }
+  50% {
+    height: 100%;
+  }
+}

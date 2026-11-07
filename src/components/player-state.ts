@@ -9,6 +9,8 @@ export interface PlayerState {
   activeId: string | null;
   /** PiP stack, most recent first. Never contains activeId, never has duplicates. */
   pip: string[];
+  /** Whole PiP stack hidden behind its corner toggle. */
+  pipCollapsed: boolean;
   /** True once saved state (or the default stream) has been applied after the catalog loaded. */
   hydrated: boolean;
 }
@@ -20,18 +22,27 @@ export type PlayerAction =
   | { type: "promote"; id: string }
   /** Close a PiP tile. */
   | { type: "close"; id: string }
+  /** Show or hide the whole PiP stack. */
+  | { type: "togglePip" }
   /**
    * Apply saved state once the catalog is known. Unknown ids are dropped; if no valid active
    * stream remains, `fallbackActiveId` is used.
    */
   | {
       type: "hydrate";
-      saved: { activeId: string | null; pip: string[] } | null;
+      saved: SavedState | null;
       validIds: readonly string[];
       fallbackActiveId: string | null;
     };
 
-export const initialPlayerState: PlayerState = { activeId: null, pip: [], hydrated: false };
+/** What is persisted between visits, so a returning user continues with the same setup. */
+export interface SavedState {
+  activeId: string | null;
+  pip: string[];
+  pipCollapsed: boolean;
+}
+
+export const initialPlayerState: PlayerState = { activeId: null, pip: [], pipCollapsed: false, hydrated: false };
 
 function selectStream(state: PlayerState, id: string): PlayerState {
   if (state.activeId === id) return state;
@@ -49,6 +60,8 @@ export function playerReducer(state: PlayerState, action: PlayerAction): PlayerS
       if (!state.pip.includes(action.id)) return state;
       return { ...state, pip: state.pip.filter((p) => p !== action.id) };
     }
+    case "togglePip":
+      return { ...state, pipCollapsed: !state.pipCollapsed };
     case "hydrate": {
       const valid = new Set(action.validIds);
       const savedActive = action.saved?.activeId;
@@ -65,7 +78,12 @@ export function playerReducer(state: PlayerState, action: PlayerAction): PlayerS
         seen.add(id);
         pip.push(id);
       }
-      return { activeId, pip: pip.slice(0, PIP_CAP), hydrated: true };
+      return {
+        activeId,
+        pip: pip.slice(0, PIP_CAP),
+        pipCollapsed: action.saved?.pipCollapsed ?? false,
+        hydrated: true,
+      };
     }
     default:
       return state;
@@ -73,15 +91,16 @@ export function playerReducer(state: PlayerState, action: PlayerAction): PlayerS
 }
 
 /** Parse persisted state defensively (storage contents are untrusted). */
-export function parseSavedState(raw: string | null): { activeId: string | null; pip: string[] } | null {
+export function parseSavedState(raw: string | null): SavedState | null {
   if (!raw) return null;
   try {
     const data: unknown = JSON.parse(raw);
     if (!data || typeof data !== "object") return null;
-    const { activeId, pip } = data as { activeId?: unknown; pip?: unknown };
+    const { activeId, pip, pipCollapsed } = data as { activeId?: unknown; pip?: unknown; pipCollapsed?: unknown };
     return {
       activeId: typeof activeId === "string" ? activeId : null,
       pip: Array.isArray(pip) ? pip.filter((p): p is string => typeof p === "string") : [],
+      pipCollapsed: pipCollapsed === true,
     };
   } catch {
     return null;
@@ -96,11 +115,11 @@ export function loadSavedState() {
   }
 }
 
-export function saveState(state: Pick<PlayerState, "activeId" | "pip">) {
+export function saveState(state: SavedState) {
   try {
     window.localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ activeId: state.activeId, pip: state.pip }),
+      JSON.stringify({ activeId: state.activeId, pip: state.pip, pipCollapsed: state.pipCollapsed } satisfies SavedState),
     );
   } catch {
     // Storage unavailable (private mode, quota, disabled) — persistence is best-effort.

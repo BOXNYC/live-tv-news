@@ -8,6 +8,8 @@ import { StreamPlayer } from "./StreamPlayer";
 
 interface PipStackProps {
   streams: ResolvedStream[];
+  /** Stream on the main player, shown as a "now playing" card in the list when it has 2+ tiles. */
+  active: ResolvedStream | null;
   /** Whole stack hidden behind the corner toggle (tiles unmount, so hidden streams stop loading). */
   collapsed: boolean;
   onToggleCollapsed: () => void;
@@ -18,10 +20,11 @@ interface PipStackProps {
 /**
  * Previously watched streams, floating over the full-screen player (above the header panel).
  * Mobile: a bottom-aligned horizontal row. Desktop (lg+): a bottom-right column, most recent
- * nearest the corner. A toggle in the bottom-right corner shows or hides the whole stack.
+ * nearest the corner. With 2+ tiles, a "now playing" card for the main stream leads the list
+ * so the whole lineup reads in one place. A toggle in the bottom-right corner shows or hides the whole stack.
  * Tiles never idle-hide.
  */
-export function PipStack({ streams, collapsed, onToggleCollapsed, onPromote, onClose }: PipStackProps) {
+export function PipStack({ streams, active, collapsed, onToggleCollapsed, onPromote, onClose }: PipStackProps) {
   const listId = useId();
   if (streams.length === 0) return null;
   const count = `${streams.length} picture-in-picture ${streams.length === 1 ? "stream" : "streams"}`;
@@ -36,6 +39,11 @@ export function PipStack({ streams, collapsed, onToggleCollapsed, onPromote, onC
           id={listId}
           className="pointer-events-auto -m-1 mr-auto flex w-max min-w-0 max-w-[calc(100%+0.5rem)] snap-x gap-(--pip-gap) overflow-x-auto overscroll-contain p-1 lg:mr-0 lg:ml-auto lg:max-h-[calc(100dvh-var(--bar-h)-var(--pip-tab-h)-env(safe-area-inset-top)-3rem)] lg:flex-col-reverse lg:overflow-x-hidden lg:overflow-y-auto"
         >
+          {active && streams.length > 1 && (
+            <li className="shrink-0 snap-start">
+              <NowPlayingCard stream={active} />
+            </li>
+          )}
           {streams.map((stream) => (
             <li key={stream.id} className="shrink-0 snap-start">
               <PipTile stream={stream} onPromote={onPromote} onClose={onClose} />
@@ -60,6 +68,27 @@ export function PipStack({ streams, collapsed, onToggleCollapsed, onPromote, onC
         <ChevronUpIcon className={`h-3.5 w-3.5 transition-transform ${collapsed ? "" : "rotate-180"}`} />
       </button>
     </section>
+  );
+}
+
+/** Placeholder for the main stream inside the PiP list: logo, channel and a playing indicator. */
+function NowPlayingCard({ stream }: { stream: ResolvedStream }) {
+  return (
+    <div
+      aria-current="true"
+      className="relative flex aspect-video w-(--pip-w) flex-col items-center justify-center gap-1.5 overflow-hidden rounded-lg bg-zinc-900/90 p-2 text-center shadow-xl shadow-black/70 ring-2 ring-red-600/80 backdrop-blur"
+    >
+      <span className="absolute top-1.5 left-1.5 flex items-center gap-1 rounded bg-red-600 px-1.5 py-px text-[9px] font-bold tracking-wider text-white uppercase">
+        <span className="flex h-2 items-end gap-px" aria-hidden>
+          <span className="w-0.5 animate-[eq_0.9s_ease-in-out_infinite] bg-white motion-reduce:animate-none" />
+          <span className="w-0.5 animate-[eq_0.9s_ease-in-out_-0.3s_infinite] bg-white motion-reduce:animate-none" />
+          <span className="w-0.5 animate-[eq_0.9s_ease-in-out_-0.6s_infinite] bg-white motion-reduce:animate-none" />
+        </span>
+        Now playing
+      </span>
+      <ProviderBadge providerId={stream.providerId} size="md" />
+      <span className="line-clamp-1 text-xs font-semibold text-zinc-100">{stream.name}</span>
+    </div>
   );
 }
 

@@ -65,8 +65,7 @@ export function LiveTvApp() {
   );
   const close = useCallback((id: string) => dispatch({ type: "close", id }), []);
   // One toggle shows or hides the whole PiP stack; hidden tiles unmount their players.
-  const [pipCollapsed, setPipCollapsed] = useState(false);
-  const togglePip = useCallback(() => setPipCollapsed((c) => !c), []);
+  const togglePip = useCallback(() => dispatch({ type: "togglePip" }), []);
   const toggleMute = useCallback(() => setAudioOn((on) => !on), []);
   const onAutoplayBlocked = useCallback(() => setAudioOn(false), []);
 
@@ -120,7 +119,7 @@ export function LiveTvApp() {
           onToggleMute={toggleMute}
           onAutoplayBlocked={onAutoplayBlocked}
           controlsHidden={idle}
-          hasPip={!pipCollapsed && pipStreams.length > 0}
+          hasPip={!player.pipCollapsed && pipStreams.length > 0}
           hasPipTab={pipStreams.length > 0}
         />
       )}
@@ -158,7 +157,8 @@ export function LiveTvApp() {
       {catalog && (
         <PipStack
           streams={pipStreams}
-          collapsed={pipCollapsed}
+          active={active}
+          collapsed={player.pipCollapsed}
           onToggleCollapsed={togglePip}
           onPromote={promote}
           onClose={close}
