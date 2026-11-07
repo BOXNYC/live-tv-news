@@ -12,22 +12,18 @@ interface PipStackProps {
 }
 
 /**
- * Previously watched streams. Mobile: a horizontal strip under the main player (never covers it).
- * Desktop (lg+): a floating column in the bottom-right corner, most recent nearest the corner.
+ * Previously watched streams, floating over the full-screen player (above the header panel).
+ * Mobile: a bottom-aligned horizontal row. Desktop (lg+): a bottom-right column, most recent
+ * nearest the corner. Tiles never idle-hide.
  */
 export function PipStack({ streams, onPromote, onClose }: PipStackProps) {
   if (streams.length === 0) return null;
   return (
-    <section
-      aria-label="Picture-in-picture streams"
-      className="lg:pointer-events-none lg:fixed lg:right-4 lg:bottom-4 lg:z-30"
-    >
-      <h2 className="mb-2 text-[11px] font-semibold tracking-widest text-zinc-500 uppercase lg:sr-only">
-        Recently watched
-      </h2>
-      <ul className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 lg:mx-0 lg:flex-col-reverse lg:overflow-visible lg:p-0">
+    <section aria-label="Picture-in-picture streams" className="pip-dock">
+      <h2 className="sr-only">Recently watched</h2>
+      <ul className="pointer-events-auto -m-1 flex w-max max-w-[calc(100%+0.5rem)] snap-x gap-(--pip-gap) overflow-x-auto overscroll-contain p-1 lg:ml-auto lg:max-h-[calc(100dvh-var(--bar-h)-env(safe-area-inset-top)-2rem)] lg:flex-col-reverse lg:overflow-x-hidden lg:overflow-y-auto">
         {streams.map((stream) => (
-          <li key={stream.id} className="snap-start lg:pointer-events-auto">
+          <li key={stream.id} className="shrink-0 snap-start">
             <PipTile stream={stream} onPromote={onPromote} onClose={onClose} />
           </li>
         ))}
@@ -46,7 +42,7 @@ function PipTile({
   onClose: (id: string) => void;
 }) {
   return (
-    <div className="group relative aspect-video w-44 overflow-hidden rounded-lg bg-black shadow-xl shadow-black/70 ring-1 ring-white/15 transition hover:ring-white/40 sm:w-52 lg:w-60">
+    <div className="group relative aspect-video w-(--pip-w) overflow-hidden rounded-lg bg-black shadow-xl shadow-black/70 ring-1 ring-white/25 transition hover:ring-white/50">
       {/* Live preview is purely visual: pointer events go to the promote button above it. */}
       <div className="pointer-events-none absolute inset-0" aria-hidden>
         <StreamPlayer key={stream.id} stream={stream} muted variant="pip" />

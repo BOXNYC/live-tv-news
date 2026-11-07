@@ -5,6 +5,24 @@
   --background: #09090b;
   --foreground: #f4f4f5;
   color-scheme: dark;
+
+  /* Full-screen player chrome. */
+  --bar-h: 3.5rem;
+  --pip-gap: 0.75rem;
+  --pip-w: 9rem;
+  --pip-h: calc(var(--pip-w) * 9 / 16);
+}
+
+@media (width >= 40rem) {
+  :root {
+    --pip-w: 11rem;
+  }
+}
+
+@media (width >= 64rem) {
+  :root {
+    --pip-w: 14rem;
+  }
 }
 
 @theme inline {
@@ -25,8 +43,77 @@
   }
 }
 
+html,
 body {
-  background: var(--background);
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  background: #000;
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+@utility safe-px {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+@utility safe-pt {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Main player: a size container so the 16:9 frame can letterbox inside it (also in browser fullscreen). */
+.stage {
+  container-type: size;
+}
+
+.stage-frame {
+  width: min(100cqw, 100cqh * 16 / 9);
+  aspect-ratio: 16 / 9;
+}
+
+/* Bottom overlay controls: clear of notches and of the docked PiP tiles. */
+.stage-bottom {
+  padding: 0.75rem max(0.75rem, env(safe-area-inset-right)) max(0.75rem, env(safe-area-inset-bottom))
+    max(0.75rem, env(safe-area-inset-left));
+}
+
+.stage-bottom[data-pip="true"] {
+  padding-bottom: calc(env(safe-area-inset-bottom) + var(--pip-h) + var(--pip-gap) * 2);
+}
+
+@media (width >= 64rem) {
+  .stage-bottom {
+    padding: 1rem max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
+      max(1rem, env(safe-area-inset-left));
+  }
+
+  .stage-bottom[data-pip="true"] {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    padding-right: calc(env(safe-area-inset-right) + var(--pip-w) + var(--pip-gap) * 2);
+  }
+}
+
+/* PiP tiles are outside the stage, so in browser fullscreen the controls can use the corners. */
+.stage:fullscreen .stage-bottom[data-pip="true"] {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+.pip-dock {
+  position: fixed;
+  z-index: 50;
+  left: max(var(--pip-gap), env(safe-area-inset-left));
+  right: max(var(--pip-gap), env(safe-area-inset-right));
+  bottom: calc(env(safe-area-inset-bottom) + var(--pip-gap));
+  pointer-events: none;
+}
+
+@media (width >= 64rem) {
+  .pip-dock {
+    left: auto;
+  }
 }
