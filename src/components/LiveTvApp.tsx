@@ -50,9 +50,6 @@ export function LiveTvApp() {
   const pipStreams = player.pip
     .map((id) => streamsById.get(id))
     .filter((s): s is ResolvedStream => !!s);
-  const minimizedSet = new Set(player.minimized);
-  const tileStreams = pipStreams.filter((s) => !minimizedSet.has(s.id));
-  const minimizedStreams = pipStreams.filter((s) => minimizedSet.has(s.id));
   const selectedProvider: ProviderId =
     tabOverride ?? active?.providerId ?? catalog?.providers[0]?.id ?? "nbc";
   const activeProvider = catalog?.providers.find((p) => p.id === active?.providerId) ?? null;
@@ -67,8 +64,9 @@ export function LiveTvApp() {
     [streamsById],
   );
   const close = useCallback((id: string) => dispatch({ type: "close", id }), []);
-  const minimize = useCallback((id: string) => dispatch({ type: "minimize", id }), []);
-  const restore = useCallback((id: string) => dispatch({ type: "restore", id }), []);
+  // One toggle shows or hides the whole PiP stack; hidden tiles unmount their players.
+  const [pipCollapsed, setPipCollapsed] = useState(false);
+  const togglePip = useCallback(() => setPipCollapsed((c) => !c), []);
   const toggleMute = useCallback(() => setAudioOn((on) => !on), []);
   const onAutoplayBlocked = useCallback(() => setAudioOn(false), []);
 
@@ -122,8 +120,8 @@ export function LiveTvApp() {
           onToggleMute={toggleMute}
           onAutoplayBlocked={onAutoplayBlocked}
           controlsHidden={idle}
-          hasPip={tileStreams.length > 0}
-          hasPipTab={minimizedStreams.length > 0}
+          hasPip={!pipCollapsed && pipStreams.length > 0}
+          hasPipTab={pipStreams.length > 0}
         />
       )}
 
@@ -159,12 +157,11 @@ export function LiveTvApp() {
 
       {catalog && (
         <PipStack
-          streams={tileStreams}
-          minimized={minimizedStreams}
+          streams={pipStreams}
+          collapsed={pipCollapsed}
+          onToggleCollapsed={togglePip}
           onPromote={promote}
           onClose={close}
-          onMinimize={minimize}
-          onRestore={restore}
         />
       )}
     </div>

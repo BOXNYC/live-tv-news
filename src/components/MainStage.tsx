@@ -16,7 +16,7 @@ interface MainStageProps {
   controlsHidden: boolean;
   /** PiP tiles are docked at the bottom: keep the controls clear of them. */
   hasPip: boolean;
-  /** Minimized PiPs are collapsed into a tab in the bottom-right corner: keep the controls clear of it. */
+  /** The PiP show/hide toggle sits in the bottom-right corner: keep the controls clear of it. */
   hasPipTab: boolean;
 }
 

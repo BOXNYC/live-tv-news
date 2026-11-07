@@ -98,7 +98,7 @@ body {
   }
 }
 
-/* Only the minimized-PiP tab is docked (no tiles): clear its height in the bottom-right corner. */
+/* PiP stack hidden, only its show/hide toggle is docked: clear its height in the bottom-right corner. */
 .stage-bottom[data-pip="false"][data-pip-tab="true"] {
   padding-bottom: calc(env(safe-area-inset-bottom) + var(--pip-tab-h) + var(--pip-gap) * 2);
 }

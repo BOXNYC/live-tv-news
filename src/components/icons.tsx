@@ -49,12 +49,6 @@ export const CloseIcon = (p: IconProps) => (
   </Svg>
 );
 
-export const MinimizeIcon = (p: IconProps) => (
-  <Svg {...p}>
-    <path d="M5 18h14" />
-  </Svg>
-);
-
 export const ChevronUpIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="m18 15-6-6-6 6" />
