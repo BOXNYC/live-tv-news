@@ -57,11 +57,12 @@ export function PipStack({ streams, active, collapsed, onToggleCollapsed, onProm
         aria-expanded={!collapsed}
         aria-controls={collapsed ? undefined : listId}
         aria-label={`${collapsed ? "Show" : "Hide"} ${count}`}
-        className="pointer-events-auto ml-auto flex h-(--pip-tab-h) shrink-0 items-center gap-2 rounded-full bg-zinc-900/90 pr-3 pl-1.5 text-xs font-semibold text-zinc-100 shadow-xl shadow-black/70 ring-1 ring-white/25 backdrop-blur transition hover:ring-white/50 focus-visible:outline-2 focus-visible:outline-red-500"
+        className="pointer-events-auto ml-auto flex h-(--pip-tab-h) shrink-0 items-center gap-2 rounded-full bg-zinc-900/90 px-3 lg:pl-1.5 text-xs font-semibold text-zinc-100 shadow-xl shadow-black/70 ring-1 ring-white/25 backdrop-blur transition hover:ring-white/50 focus-visible:outline-2 focus-visible:outline-red-500"
       >
-        <span className="flex -space-x-1.5" aria-hidden>
-          {streams.slice(0, 3).map((s) => (
-            <ProviderBadge key={s.id} providerId={s.providerId} size="sm" decorative />
+        {/* One logo per network, desktop layout only (the mobile toggle stays compact). */}
+        <span className="hidden -space-x-1.5 lg:flex" aria-hidden>
+          {[...new Set(streams.map((s) => s.providerId))].map((providerId) => (
+            <ProviderBadge key={providerId} providerId={providerId} size="sm" decorative />
           ))}
         </span>
         <span aria-hidden>{collapsed ? streams.length : "Hide"}</span>
