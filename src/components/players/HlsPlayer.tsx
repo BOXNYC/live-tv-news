@@ -9,6 +9,8 @@ const WATCHDOG_INTERVAL_MS = 3_000;
 interface HlsPlayerProps {
   url: string;
   muted: boolean;
+  /** User paused playback (tap on the main player). */
+  paused?: boolean;
   /** Unrecoverable failure: the parent should try the next source. */
   onFatal: (reason: string) => void;
   /** Playback is progressing (used to clear "connecting" UI). */
@@ -21,12 +23,12 @@ interface HlsPlayerProps {
  * Plays an HLS manifest in our own <video>. Uses native HLS where supported (Safari/iOS),
  * otherwise lazy-loads hls.js. Remounted by the parent (via key) whenever the source changes.
  */
-export function HlsPlayer({ url, muted, onFatal, onPlaying, onAutoplayBlocked }: HlsPlayerProps) {
+export function HlsPlayer({ url, muted, paused = false, onFatal, onPlaying, onAutoplayBlocked }: HlsPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  // Latest callbacks/mute without restarting the pipeline when they change.
-  const cb = useRef({ onFatal, onPlaying, onAutoplayBlocked, muted });
+  // Latest callbacks/mute/pause without restarting the pipeline when they change.
+  const cb = useRef({ onFatal, onPlaying, onAutoplayBlocked, muted, paused });
   useEffect(() => {
-    cb.current = { onFatal, onPlaying, onAutoplayBlocked, muted };
+    cb.current = { onFatal, onPlaying, onAutoplayBlocked, muted, paused };
   });
 
   // Attach the source (native or hls.js), plus a stall watchdog.
@@ -45,6 +47,7 @@ export function HlsPlayer({ url, muted, onFatal, onPlaying, onAutoplayBlocked }:
 
     const tryPlay = () => {
       video.muted = cb.current.muted;
+      if (cb.current.paused) return;
       video.play().catch((err: unknown) => {
         if (disposed) return;
         if (err instanceof DOMException && err.name === "NotAllowedError" && !video.muted) {
@@ -61,6 +64,10 @@ export function HlsPlayer({ url, muted, onFatal, onPlaying, onAutoplayBlocked }:
     let lastProgressAt = Date.now();
     let reportedPlaying = false;
     const watchdog = window.setInterval(() => {
+      if (cb.current.paused) {
+        lastProgressAt = Date.now();
+        return;
+      }
       if (video.currentTime !== lastTime) {
         lastTime = video.currentTime;
         lastProgressAt = Date.now();
@@ -154,8 +161,23 @@ export function HlsPlayer({ url, muted, onFatal, onPlaying, onAutoplayBlocked }:
     const video = videoRef.current;
     if (!video) return;
     video.muted = muted;
-    if (!muted && video.paused) video.play().catch(() => {});
+    if (!muted && video.paused && !cb.current.paused) video.play().catch(() => {});
   }, [muted]);
+
+  // Pause/resume. A live stream paused past its DVR window resumes at the live edge.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (paused) {
+      video.pause();
+      return;
+    }
+    const { seekable } = video;
+    if (seekable.length > 0 && video.currentTime < seekable.start(0)) {
+      video.currentTime = Math.max(seekable.start(0), seekable.end(seekable.length - 1) - 3);
+    }
+    if (video.paused && video.readyState > HTMLMediaElement.HAVE_NOTHING) video.play().catch(() => {});
+  }, [paused]);
 
   return (
     <video

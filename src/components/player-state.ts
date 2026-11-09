@@ -25,6 +25,13 @@ export type PlayerAction =
   /** Show or hide the whole PiP stack. */
   | { type: "togglePip" }
   /**
+   * Swipe through the lineup [active, ...pip] as a loop: "next" plays pip[0] and sends the current
+   * stream to the end; "previous" plays the last PiP and puts the current stream first. The cyclic
+   * order is preserved, so repeated swipes walk the whole lineup and wrap around at both ends.
+   */
+  | { type: "next" }
+  | { type: "previous" }
+  /**
    * Apply saved state once the catalog is known. Unknown ids are dropped; if no valid active
    * stream remains, `fallbackActiveId` is used.
    */
@@ -62,6 +69,16 @@ export function playerReducer(state: PlayerState, action: PlayerAction): PlayerS
     }
     case "togglePip":
       return { ...state, pipCollapsed: !state.pipCollapsed };
+    case "next": {
+      if (!state.activeId || state.pip.length === 0) return state;
+      const [first, ...rest] = state.pip;
+      return { ...state, activeId: first, pip: [...rest, state.activeId] };
+    }
+    case "previous": {
+      if (!state.activeId || state.pip.length === 0) return state;
+      const last = state.pip[state.pip.length - 1];
+      return { ...state, activeId: last, pip: [state.activeId, ...state.pip.slice(0, -1)] };
+    }
     case "hydrate": {
       const valid = new Set(action.validIds);
       const savedActive = action.saved?.activeId;

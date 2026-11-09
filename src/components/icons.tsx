@@ -49,6 +49,12 @@ export const CloseIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const PlayIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M7 4.5v15l12-7.5-12-7.5z" fill="currentColor" />
+  </Svg>
+);
+
 export const ChevronUpIcon = (p: IconProps) => (
   <Svg {...p}>
     <path d="m18 15-6-6-6 6" />

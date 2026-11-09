@@ -13,6 +13,8 @@ interface StreamPlayerProps {
   /** Ordered candidates, primary first. Defaults to stream.sources. */
   sources?: EmbedSource[];
   muted: boolean;
+  /** Main player only: user paused playback. Provider embeds can't be paused from here. */
+  paused?: boolean;
   variant: PlayerVariant;
   /** HLS only: the browser refused unmuted autoplay, playback continued muted. */
   onAutoplayBlocked?: () => void;
@@ -34,6 +36,7 @@ export function StreamPlayer({
   stream,
   sources = stream.sources,
   muted,
+  paused = false,
   variant,
   onAutoplayBlocked,
   renderOverlay,
@@ -92,6 +95,7 @@ export function StreamPlayer({
         key={`${stream.id}:${index}`}
         url={source.url}
         muted={muted}
+        paused={paused}
         onFatal={handleFatal}
         onPlaying={handlePlaying}
         onAutoplayBlocked={onAutoplayBlocked}
@@ -104,6 +108,7 @@ export function StreamPlayer({
         channelId={source.channelId}
         videoId={source.videoId}
         muted={muted}
+        paused={paused}
         title={stream.name}
         onFatal={handleFatal}
         onPlaying={handlePlaying}

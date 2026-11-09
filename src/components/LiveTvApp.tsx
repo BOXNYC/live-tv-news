@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import type { ProviderId, ResolvedStream, StreamCatalog } from "@/lib/streams/types";
 import { AppHeader } from "./AppHeader";
-import { MainStage } from "./MainStage";
+import { MainStage, type SwipeDirection } from "./MainStage";
 import { PipStack } from "./PipStack";
 import { initialPlayerState, loadSavedState, playerReducer, saveState } from "./player-state";
 import { StreamSelector } from "./StreamSelector";
@@ -66,6 +66,26 @@ export function LiveTvApp() {
   const close = useCallback((id: string) => dispatch({ type: "close", id }), []);
   // One toggle shows or hides the whole PiP stack; hidden tiles unmount their players.
   const togglePip = useCallback(() => dispatch({ type: "togglePip" }), []);
+
+  // Swipe right → next stream in the lineup, left → previous; both wrap around (see reducer).
+  const swipe = useCallback(
+    (direction: SwipeDirection) => {
+      const target = direction === "right" ? player.pip[0] : player.pip[player.pip.length - 1];
+      if (!target) return;
+      dispatch({ type: direction === "right" ? "next" : "previous" });
+      const s = streamsById.get(target);
+      if (s) setTabOverride(s.providerId);
+    },
+    [player.pip, streamsById],
+  );
+
+  // Tap pauses/resumes the main stream. Keyed by stream id so a new main stream always plays.
+  const [pausedId, setPausedId] = useState<string | null>(null);
+  const paused = !!player.activeId && pausedId === player.activeId;
+  const togglePause = useCallback(
+    () => setPausedId((id) => (id === player.activeId ? null : player.activeId)),
+    [player.activeId],
+  );
   const toggleMute = useCallback(() => setAudioOn((on) => !on), []);
   const onAutoplayBlocked = useCallback(() => setAudioOn(false), []);
 
@@ -121,11 +141,11 @@ export function LiveTvApp() {
           controlsHidden={idle}
           hasPip={!player.pipCollapsed && pipStreams.length > 0}
           hasPipTab={pipStreams.length > 0}
+          paused={paused}
+          onTogglePause={togglePause}
+          onSwipe={swipe}
         />
       )}
-
-      {/* While idle, the first touch or mouse move over the video (even a cross-origin iframe) wakes the UI. */}
-      {idle && <div className="absolute inset-0 z-20" aria-hidden />}
 
       <AppHeader open={panelOpen} onOpenChange={setPanelOpen} hidden={idle} nowPlaying={active}>
         {catalog ? (

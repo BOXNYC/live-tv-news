@@ -6,6 +6,8 @@ interface YouTubePlayerProps {
   channelId: string;
   videoId?: string;
   muted: boolean;
+  /** User paused playback (tap on the main player). */
+  paused?: boolean;
   title: string;
   onFatal: (reason: string) => void;
   onPlaying?: () => void;
@@ -46,6 +48,7 @@ export function YouTubePlayer({
   channelId,
   videoId,
   muted,
+  paused = false,
   title,
   onFatal,
   onPlaying,
@@ -53,9 +56,9 @@ export function YouTubePlayer({
 }: YouTubePlayerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { src, origin } = youTubeEmbedUrl(channelId, videoId);
-  const cb = useRef({ onFatal, onPlaying, muted });
+  const cb = useRef({ onFatal, onPlaying, muted, paused });
   useEffect(() => {
-    cb.current = { onFatal, onPlaying, muted };
+    cb.current = { onFatal, onPlaying, muted, paused };
   });
 
   const post = useCallback(
@@ -68,7 +71,7 @@ export function YouTubePlayer({
   const applyMute = useCallback(
     (isMuted: boolean) => {
       post({ event: "command", func: isMuted ? "mute" : "unMute", args: [] });
-      if (!isMuted) post({ event: "command", func: "playVideo", args: [] });
+      if (!isMuted && !cb.current.paused) post({ event: "command", func: "playVideo", args: [] });
     },
     [post],
   );
@@ -106,6 +109,7 @@ export function YouTubePlayer({
       window.setTimeout(() => {
         post({ event: "listening", id: title, channel: "widget" });
         applyMute(cb.current.muted);
+        if (cb.current.paused) post({ event: "command", func: "pauseVideo", args: [] });
       }, delay);
     }
   }, [post, applyMute, title]);
@@ -113,6 +117,10 @@ export function YouTubePlayer({
   useEffect(() => {
     applyMute(muted);
   }, [muted, applyMute]);
+
+  useEffect(() => {
+    post({ event: "command", func: paused ? "pauseVideo" : "playVideo", args: [] });
+  }, [paused, post]);
 
   return (
     <iframe
