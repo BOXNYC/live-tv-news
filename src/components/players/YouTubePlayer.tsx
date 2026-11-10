@@ -8,6 +8,10 @@ interface YouTubePlayerProps {
   muted: boolean;
   /** User paused playback (tap on the main player). */
   paused?: boolean;
+  /** Show closed captions (toggles the player's captions module). */
+  captions?: boolean;
+  /** Incremented to jump to the live edge ("Go live"). */
+  liveSeq?: number;
   title: string;
   onFatal: (reason: string) => void;
   onPlaying?: () => void;
@@ -49,6 +53,8 @@ export function YouTubePlayer({
   videoId,
   muted,
   paused = false,
+  captions = false,
+  liveSeq = 0,
   title,
   onFatal,
   onPlaying,
@@ -56,10 +62,12 @@ export function YouTubePlayer({
 }: YouTubePlayerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { src, origin } = youTubeEmbedUrl(channelId, videoId);
-  const cb = useRef({ onFatal, onPlaying, muted, paused });
+  const cb = useRef({ onFatal, onPlaying, muted, paused, captions });
   useEffect(() => {
-    cb.current = { onFatal, onPlaying, muted, paused };
+    cb.current = { onFatal, onPlaying, muted, paused, captions };
   });
+  // Latest DVR length reported by the player; seeking to it lands on the live edge.
+  const durationRef = useRef<number | null>(null);
 
   const post = useCallback(
     (message: object) => {
@@ -73,6 +81,13 @@ export function YouTubePlayer({
       post({ event: "command", func: isMuted ? "mute" : "unMute", args: [] });
       if (!isMuted && !cb.current.paused) post({ event: "command", func: "playVideo", args: [] });
     },
+    [post],
+  );
+
+  // loadModule/unloadModule("captions") is the IFrame API's (unofficial but long-standing) way to
+  // show or hide captions without reloading the embed.
+  const applyCaptions = useCallback(
+    (on: boolean) => post({ event: "command", func: on ? "loadModule" : "unloadModule", args: ["captions"] }),
     [post],
   );
 
@@ -94,8 +109,9 @@ export function YouTubePlayer({
       } else if (data.event === "onStateChange" && data.info === 1) {
         cb.current.onPlaying?.();
       } else if (data.event === "infoDelivery" || data.event === "initialDelivery") {
-        const info = data.info as { playerState?: number } | undefined;
+        const info = data.info as { playerState?: number; duration?: number } | undefined;
         if (info?.playerState === 1) cb.current.onPlaying?.();
+        if (typeof info?.duration === "number" && info.duration > 0) durationRef.current = info.duration;
       }
     };
     window.addEventListener("message", onMessage);
@@ -109,10 +125,11 @@ export function YouTubePlayer({
       window.setTimeout(() => {
         post({ event: "listening", id: title, channel: "widget" });
         applyMute(cb.current.muted);
+        applyCaptions(cb.current.captions);
         if (cb.current.paused) post({ event: "command", func: "pauseVideo", args: [] });
       }, delay);
     }
-  }, [post, applyMute, title]);
+  }, [post, applyMute, applyCaptions, title]);
 
   useEffect(() => {
     applyMute(muted);
@@ -121,6 +138,21 @@ export function YouTubePlayer({
   useEffect(() => {
     post({ event: "command", func: paused ? "pauseVideo" : "playVideo", args: [] });
   }, [paused, post]);
+
+  useEffect(() => {
+    applyCaptions(captions);
+  }, [captions, applyCaptions]);
+
+  // "Go live": seek to the end of the DVR window. The first run (mount) is skipped.
+  const lastLiveSeq = useRef(liveSeq);
+  useEffect(() => {
+    if (liveSeq === lastLiveSeq.current) return;
+    lastLiveSeq.current = liveSeq;
+    if (durationRef.current !== null) {
+      post({ event: "command", func: "seekTo", args: [durationRef.current, true] });
+    }
+    post({ event: "command", func: "playVideo", args: [] });
+  }, [liveSeq, post]);
 
   return (
     <iframe

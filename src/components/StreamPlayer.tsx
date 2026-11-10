@@ -15,11 +15,20 @@ interface StreamPlayerProps {
   muted: boolean;
   /** Main player only: user paused playback. Provider embeds can't be paused from here. */
   paused?: boolean;
+  /** Main player only: show closed captions where the source supports it. */
+  captions?: boolean;
+  /** Main player only: incremented to jump to the live edge. */
+  liveSeq?: number;
   variant: PlayerVariant;
   /** HLS only: the browser refused unmuted autoplay, playback continued muted. */
   onAutoplayBlocked?: () => void;
   /** Chrome drawn above the video (main player overlay). Receives the source currently in use. */
-  renderOverlay?: (source: EmbedSource | null) => ReactNode;
+  renderOverlay?: (source: EmbedSource | null, info: OverlayInfo) => ReactNode;
+}
+
+export interface OverlayInfo {
+  /** The current source can show captions (HLS with caption tracks, or YouTube). */
+  captionsAvailable: boolean;
 }
 
 export const SOURCE_LABEL: Record<EmbedSource["type"], string> = {
@@ -37,11 +46,15 @@ export function StreamPlayer({
   sources = stream.sources,
   muted,
   paused = false,
+  captions = false,
+  liveSeq = 0,
   variant,
   onAutoplayBlocked,
   renderOverlay,
 }: StreamPlayerProps) {
   const [index, setIndex] = useState(0);
+  // Source index whose HLS stream reported caption tracks.
+  const [captionsIndex, setCaptionsIndex] = useState<number | null>(null);
   const [playingIndex, setPlayingIndex] = useState<number | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
 
@@ -56,6 +69,10 @@ export function StreamPlayer({
     [index],
   );
   const handlePlaying = useCallback(() => setPlayingIndex(index), [index]);
+  const handleCaptionsAvailable = useCallback(
+    (available: boolean) => setCaptionsIndex((i) => (available ? index : i === index ? null : i)),
+    [index],
+  );
   const retry = useCallback(() => {
     setLastError(null);
     setPlayingIndex(null);
@@ -96,6 +113,9 @@ export function StreamPlayer({
         url={source.url}
         muted={muted}
         paused={paused}
+        captions={captions}
+        liveSeq={liveSeq}
+        onCaptionsAvailable={handleCaptionsAvailable}
         onFatal={handleFatal}
         onPlaying={handlePlaying}
         onAutoplayBlocked={onAutoplayBlocked}
@@ -109,6 +129,8 @@ export function StreamPlayer({
         videoId={source.videoId}
         muted={muted}
         paused={paused}
+        captions={captions}
+        liveSeq={liveSeq}
         title={stream.name}
         onFatal={handleFatal}
         onPlaying={handlePlaying}
@@ -167,7 +189,9 @@ export function StreamPlayer({
           Trying backup source…
         </div>
       )}
-      {renderOverlay?.(source ?? null)}
+      {renderOverlay?.(source ?? null, {
+        captionsAvailable: source?.type === "youtube" || (source?.type === "hls" && captionsIndex === index),
+      })}
     </div>
   );
 }

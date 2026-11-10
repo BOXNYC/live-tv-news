@@ -79,13 +79,29 @@ export function LiveTvApp() {
     [player.pip, streamsById],
   );
 
-  // Tap pauses/resumes the main stream. Keyed by stream id so a new main stream always plays.
+  // Tap pauses/resumes the main stream. Keyed by stream id so a new main stream always plays live.
   const [pausedId, setPausedId] = useState<string | null>(null);
+  // Resuming continues from the paused point, i.e. behind live, until the user goes live.
+  const [behindId, setBehindId] = useState<string | null>(null);
+  const [liveSeq, setLiveSeq] = useState(0);
   const paused = !!player.activeId && pausedId === player.activeId;
-  const togglePause = useCallback(
-    () => setPausedId((id) => (id === player.activeId ? null : player.activeId)),
-    [player.activeId],
-  );
+  const behindLive = !paused && !!player.activeId && behindId === player.activeId;
+  const togglePause = useCallback(() => {
+    const id = player.activeId;
+    if (!id) return;
+    if (pausedId === id) {
+      setPausedId(null);
+      setBehindId(id);
+    } else {
+      setPausedId(id);
+    }
+  }, [player.activeId, pausedId]);
+  const goLive = useCallback(() => {
+    setPausedId(null);
+    setBehindId(null);
+    setLiveSeq((n) => n + 1);
+  }, []);
+  const toggleCaptions = useCallback(() => dispatch({ type: "toggleCaptions" }), []);
   const toggleMute = useCallback(() => setAudioOn((on) => !on), []);
   const onAutoplayBlocked = useCallback(() => setAudioOn(false), []);
 
@@ -102,7 +118,7 @@ export function LiveTvApp() {
   );
 
   // Clean video: chrome fades after a few idle seconds while a stream plays and the panel is shut.
-  const idle = useIdle(IDLE_MS, !!active && !panelOpen);
+  const idle = useIdle(IDLE_MS, !!active && !panelOpen && !paused);
 
   return (
     <div className={`fixed top-0 left-0 h-dvh w-dvw overflow-hidden bg-black text-zinc-100 ${idle ? "cursor-none" : ""}`}>
@@ -142,6 +158,11 @@ export function LiveTvApp() {
           hasPip={!player.pipCollapsed && pipStreams.length > 0}
           hasPipTab={pipStreams.length > 0}
           paused={paused}
+          behindLive={behindLive}
+          onGoLive={goLive}
+          liveSeq={liveSeq}
+          captions={player.captions}
+          onToggleCaptions={toggleCaptions}
           onTogglePause={togglePause}
           onSwipe={swipe}
         />

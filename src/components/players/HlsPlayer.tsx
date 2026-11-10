@@ -4,6 +4,25 @@ import { useEffect, useRef } from "react";
 import type Hls from "hls.js";
 
 const STALL_TIMEOUT_MS = 15_000;
+/** How far behind the live edge "Go live" lands when hls.js has no sync position (native HLS). */
+const LIVE_EDGE_OFFSET_S = 3;
+
+const isCaptionTrack = (t: TextTrack) => t.kind === "captions" || t.kind === "subtitles";
+
+/**
+ * Show the first caption/subtitle track or hide them all. Captions come from hls.js (CEA-608,
+ * created hidden) or, with native HLS (Safari), the browser, which may apply the system caption
+ * setting; either way the browser's text-track modes decide what is drawn. Returns whether any
+ * caption track exists.
+ */
+function applyCaptions(video: HTMLVideoElement, on: boolean): boolean {
+  const tracks = Array.from(video.textTracks).filter(isCaptionTrack);
+  tracks.forEach((track, i) => {
+    const mode: TextTrackMode = on && i === 0 ? "showing" : "hidden";
+    if (track.mode !== mode) track.mode = mode;
+  });
+  return tracks.length > 0;
+}
 const WATCHDOG_INTERVAL_MS = 3_000;
 
 interface HlsPlayerProps {
@@ -11,6 +30,12 @@ interface HlsPlayerProps {
   muted: boolean;
   /** User paused playback (tap on the main player). */
   paused?: boolean;
+  /** Show closed captions when the stream carries them. */
+  captions?: boolean;
+  /** Incremented to jump to the live edge ("Go live"). */
+  liveSeq?: number;
+  /** Whether the stream carries caption tracks (tracks can appear after playback starts). */
+  onCaptionsAvailable?: (available: boolean) => void;
   /** Unrecoverable failure: the parent should try the next source. */
   onFatal: (reason: string) => void;
   /** Playback is progressing (used to clear "connecting" UI). */
@@ -23,12 +48,23 @@ interface HlsPlayerProps {
  * Plays an HLS manifest in our own <video>. Uses native HLS where supported (Safari/iOS),
  * otherwise lazy-loads hls.js. Remounted by the parent (via key) whenever the source changes.
  */
-export function HlsPlayer({ url, muted, paused = false, onFatal, onPlaying, onAutoplayBlocked }: HlsPlayerProps) {
+export function HlsPlayer({
+  url,
+  muted,
+  paused = false,
+  captions = false,
+  liveSeq = 0,
+  onCaptionsAvailable,
+  onFatal,
+  onPlaying,
+  onAutoplayBlocked,
+}: HlsPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  // Latest callbacks/mute/pause without restarting the pipeline when they change.
-  const cb = useRef({ onFatal, onPlaying, onAutoplayBlocked, muted, paused });
+  const hlsRef = useRef<Hls | null>(null);
+  // Latest callbacks/mute/pause/captions without restarting the pipeline when they change.
+  const cb = useRef({ onFatal, onPlaying, onAutoplayBlocked, onCaptionsAvailable, muted, paused, captions });
   useEffect(() => {
-    cb.current = { onFatal, onPlaying, onAutoplayBlocked, muted, paused };
+    cb.current = { onFatal, onPlaying, onAutoplayBlocked, onCaptionsAvailable, muted, paused, captions };
   });
 
   // Attach the source (native or hls.js), plus a stall watchdog.
@@ -89,6 +125,20 @@ export function HlsPlayer({ url, muted, paused = false, onFatal, onPlaying, onAu
     };
     video.addEventListener("playing", handlePlaying);
 
+    // Caption tracks arrive asynchronously, and the browser or hls.js may change their modes:
+    // re-apply the user's choice whenever the track list changes.
+    let captionsReported: boolean | null = null;
+    const syncCaptions = () => {
+      const available = applyCaptions(video, cb.current.captions);
+      if (available !== captionsReported) {
+        captionsReported = available;
+        cb.current.onCaptionsAvailable?.(available);
+      }
+    };
+    video.textTracks.addEventListener("addtrack", syncCaptions);
+    video.textTracks.addEventListener("removetrack", syncCaptions);
+    video.textTracks.addEventListener("change", syncCaptions);
+
     const nativeHls = video.canPlayType("application/vnd.apple.mpegurl") !== "";
     const handleNativeError = () => fail("Video element error");
 
@@ -127,6 +177,7 @@ export function HlsPlayer({ url, muted, paused = false, onFatal, onPlaying, onAu
             },
           });
           hls = instance;
+          hlsRef.current = instance;
           let recoveredMedia = false;
           instance.on(HlsCtor.Events.ERROR, (_event, data) => {
             if (!data.fatal) return;
@@ -149,8 +200,12 @@ export function HlsPlayer({ url, muted, paused = false, onFatal, onPlaying, onAu
       window.clearInterval(watchdog);
       video.removeEventListener("playing", handlePlaying);
       video.removeEventListener("error", handleNativeError);
+      video.textTracks.removeEventListener("addtrack", syncCaptions);
+      video.textTracks.removeEventListener("removetrack", syncCaptions);
+      video.textTracks.removeEventListener("change", syncCaptions);
       hls?.destroy();
       hls = null;
+      hlsRef.current = null;
       video.removeAttribute("src");
       video.load();
     };
@@ -178,6 +233,26 @@ export function HlsPlayer({ url, muted, paused = false, onFatal, onPlaying, onAu
     }
     if (video.paused && video.readyState > HTMLMediaElement.HAVE_NOTHING) video.play().catch(() => {});
   }, [paused]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video) applyCaptions(video, captions);
+  }, [captions]);
+
+  // "Go live": jump to the live edge. The first run (mount) is skipped.
+  const lastLiveSeq = useRef(liveSeq);
+  useEffect(() => {
+    if (liveSeq === lastLiveSeq.current) return;
+    lastLiveSeq.current = liveSeq;
+    const video = videoRef.current;
+    if (!video) return;
+    const { seekable } = video;
+    const edge =
+      hlsRef.current?.liveSyncPosition ??
+      (seekable.length > 0 ? seekable.end(seekable.length - 1) - LIVE_EDGE_OFFSET_S : null);
+    if (edge !== null && Number.isFinite(edge)) video.currentTime = edge;
+    video.play().catch(() => {});
+  }, [liveSeq]);
 
   return (
     <video

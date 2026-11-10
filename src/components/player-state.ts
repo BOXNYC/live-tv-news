@@ -11,6 +11,8 @@ export interface PlayerState {
   pip: string[];
   /** Whole PiP stack hidden behind its corner toggle. */
   pipCollapsed: boolean;
+  /** Closed captions on the main player (a user preference, remembered between visits). */
+  captions: boolean;
   /** True once saved state (or the default stream) has been applied after the catalog loaded. */
   hydrated: boolean;
 }
@@ -24,6 +26,8 @@ export type PlayerAction =
   | { type: "close"; id: string }
   /** Show or hide the whole PiP stack. */
   | { type: "togglePip" }
+  /** Turn closed captions on or off. */
+  | { type: "toggleCaptions" }
   /**
    * Swipe through the lineup [active, ...pip] as a loop: "next" plays pip[0] and sends the current
    * stream to the end; "previous" plays the last PiP and puts the current stream first. The cyclic
@@ -47,9 +51,16 @@ export interface SavedState {
   activeId: string | null;
   pip: string[];
   pipCollapsed: boolean;
+  captions: boolean;
 }
 
-export const initialPlayerState: PlayerState = { activeId: null, pip: [], pipCollapsed: false, hydrated: false };
+export const initialPlayerState: PlayerState = {
+  activeId: null,
+  pip: [],
+  pipCollapsed: false,
+  captions: false,
+  hydrated: false,
+};
 
 function selectStream(state: PlayerState, id: string): PlayerState {
   if (state.activeId === id) return state;
@@ -69,6 +80,8 @@ export function playerReducer(state: PlayerState, action: PlayerAction): PlayerS
     }
     case "togglePip":
       return { ...state, pipCollapsed: !state.pipCollapsed };
+    case "toggleCaptions":
+      return { ...state, captions: !state.captions };
     case "next": {
       if (!state.activeId || state.pip.length === 0) return state;
       const [first, ...rest] = state.pip;
@@ -99,6 +112,7 @@ export function playerReducer(state: PlayerState, action: PlayerAction): PlayerS
         activeId,
         pip: pip.slice(0, PIP_CAP),
         pipCollapsed: action.saved?.pipCollapsed ?? false,
+        captions: action.saved?.captions ?? false,
         hydrated: true,
       };
     }
@@ -113,11 +127,17 @@ export function parseSavedState(raw: string | null): SavedState | null {
   try {
     const data: unknown = JSON.parse(raw);
     if (!data || typeof data !== "object") return null;
-    const { activeId, pip, pipCollapsed } = data as { activeId?: unknown; pip?: unknown; pipCollapsed?: unknown };
+    const { activeId, pip, pipCollapsed, captions } = data as {
+      activeId?: unknown;
+      pip?: unknown;
+      pipCollapsed?: unknown;
+      captions?: unknown;
+    };
     return {
       activeId: typeof activeId === "string" ? activeId : null,
       pip: Array.isArray(pip) ? pip.filter((p): p is string => typeof p === "string") : [],
       pipCollapsed: pipCollapsed === true,
+      captions: captions === true,
     };
   } catch {
     return null;
@@ -136,7 +156,12 @@ export function saveState(state: SavedState) {
   try {
     window.localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ activeId: state.activeId, pip: state.pip, pipCollapsed: state.pipCollapsed } satisfies SavedState),
+      JSON.stringify({
+        activeId: state.activeId,
+        pip: state.pip,
+        pipCollapsed: state.pipCollapsed,
+        captions: state.captions,
+      } satisfies SavedState),
     );
   } catch {
     // Storage unavailable (private mode, quota, disabled) — persistence is best-effort.

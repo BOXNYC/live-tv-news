@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { EmbedSource, ResolvedStream } from "@/lib/streams/types";
-import { SOURCE_LABEL, StreamPlayer } from "./StreamPlayer";
+import { SOURCE_LABEL, StreamPlayer, type OverlayInfo } from "./StreamPlayer";
 import { ExpandIcon, PlayIcon, ShrinkIcon, SpeakerIcon, SpeakerOffIcon } from "./icons";
 
 export type SwipeDirection = "left" | "right";
@@ -25,6 +25,14 @@ interface MainStageProps {
   /** The PiP show/hide toggle sits in the bottom-right corner: keep the controls clear of it. */
   hasPipTab: boolean;
   paused: boolean;
+  /** Resumed after a pause: playing behind the live edge until the user goes live. */
+  behindLive: boolean;
+  /** Jump to the live edge (and resume). */
+  onGoLive: () => void;
+  /** Incremented by the parent on "Go live"; players seek to the live edge when it changes. */
+  liveSeq: number;
+  captions: boolean;
+  onToggleCaptions: () => void;
   /** Tap on the video. */
   onTogglePause: () => void;
   /** Horizontal swipe on the video. */
@@ -82,6 +90,11 @@ export function MainStage({
   hasPip,
   hasPipTab,
   paused,
+  behindLive,
+  onGoLive,
+  liveSeq,
+  captions,
+  onToggleCaptions,
   onTogglePause,
   onSwipe,
 }: MainStageProps) {
@@ -109,7 +122,7 @@ export function MainStage({
   }, []);
 
   const renderOverlay = useCallback(
-    (source: EmbedSource | null) => {
+    (source: EmbedSource | null, { captionsAvailable }: OverlayInfo) => {
       if (!stream || !overlayHost) return null;
       const controllable = source?.type === "hls" || source?.type === "youtube";
       const interactive = controlsHidden ? "pointer-events-none" : "pointer-events-auto";
@@ -136,6 +149,19 @@ export function MainStage({
               </span>
             </div>
           )}
+          {controllable && paused && (
+            // Separate from the indicator so only the button is clickable; taps elsewhere resume.
+            <div className="pointer-events-none absolute inset-x-0 top-1/2 flex translate-y-24 justify-center">
+              <button
+                type="button"
+                onClick={onGoLive}
+                className="pointer-events-auto flex items-center gap-2 rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-red-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              >
+                <span className="h-2 w-2 rounded-full bg-white" aria-hidden />
+                Go live
+              </button>
+            </div>
+          )}
           <div
             data-pip={hasPip}
             data-pip-tab={hasPipTab}
@@ -145,10 +171,22 @@ export function MainStage({
           >
             <div className="flex min-w-0 flex-col items-start gap-2">
               <div className="flex max-w-full min-w-0 items-center gap-2">
-                <span className="flex shrink-0 items-center gap-1 rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-white">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" aria-hidden />
-                  LIVE
-                </span>
+                {controllable && behindLive ? (
+                  <button
+                    type="button"
+                    onClick={onGoLive}
+                    title="Playing behind live. Jump to live"
+                    className={`${interactive} flex shrink-0 items-center gap-1 rounded bg-zinc-700 px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-white uppercase ring-1 ring-white/20 transition hover:bg-red-600 focus-visible:outline-2 focus-visible:outline-red-500`}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-zinc-400" aria-hidden />
+                    Go live
+                  </button>
+                ) : (
+                  <span className="flex shrink-0 items-center gap-1 rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-white">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" aria-hidden />
+                    LIVE
+                  </span>
+                )}
                 <span className="truncate text-sm font-semibold text-white drop-shadow sm:text-base">
                   {stream.name}
                 </span>
@@ -178,6 +216,22 @@ export function MainStage({
               )}
             </div>
             <div className="flex shrink-0 gap-2">
+              {captionsAvailable && (
+                <button
+                  type="button"
+                  onClick={onToggleCaptions}
+                  aria-pressed={captions}
+                  aria-label="Closed captions"
+                  title={captions ? "Turn captions off" : "Turn captions on"}
+                  className={`${interactive} rounded-full px-2.5 py-2 text-xs leading-5 font-bold ring-1 transition focus-visible:outline-2 focus-visible:outline-red-500 ${
+                    captions
+                      ? "bg-white text-black ring-white hover:bg-zinc-200"
+                      : "bg-black/50 text-white ring-white/20 hover:bg-black/70"
+                  }`}
+                >
+                  CC
+                </button>
+              )}
               {controllable && !muted && (
                 <button
                   type="button"
@@ -214,6 +268,10 @@ export function MainStage({
       toggleFullscreen,
       isFullscreen,
       paused,
+      behindLive,
+      onGoLive,
+      captions,
+      onToggleCaptions,
       onTogglePause,
       onSwipe,
     ],
@@ -230,6 +288,8 @@ export function MainStage({
               stream={stream}
               muted={muted}
               paused={paused}
+              captions={captions}
+              liveSeq={liveSeq}
               variant="main"
               onAutoplayBlocked={onAutoplayBlocked}
               renderOverlay={renderOverlay}
