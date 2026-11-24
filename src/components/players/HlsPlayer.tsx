@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react";
 import type Hls from "hls.js";
 
 const STALL_TIMEOUT_MS = 15_000;
+/** Volume while voice control waits for a command, so the TV doesn't drown out the user. */
+const DUCKED_VOLUME = 0.08;
 /** How far behind the live edge "Go live" lands when hls.js has no sync position (native HLS). */
 const LIVE_EDGE_OFFSET_S = 3;
 
@@ -28,6 +30,8 @@ const WATCHDOG_INTERVAL_MS = 3_000;
 interface HlsPlayerProps {
   url: string;
   muted: boolean;
+  /** Play very quietly (voice control is listening for a command). */
+  ducked?: boolean;
   /** User paused playback (tap on the main player). */
   paused?: boolean;
   /** Show closed captions when the stream carries them. */
@@ -51,6 +55,7 @@ interface HlsPlayerProps {
 export function HlsPlayer({
   url,
   muted,
+  ducked = false,
   paused = false,
   captions = false,
   liveSeq = 0,
@@ -61,10 +66,10 @@ export function HlsPlayer({
 }: HlsPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
-  // Latest callbacks/mute/pause/captions without restarting the pipeline when they change.
-  const cb = useRef({ onFatal, onPlaying, onAutoplayBlocked, onCaptionsAvailable, muted, paused, captions });
+  // Latest callbacks/volume/pause/captions without restarting the pipeline when they change.
+  const cb = useRef({ onFatal, onPlaying, onAutoplayBlocked, onCaptionsAvailable, muted, ducked, paused, captions });
   useEffect(() => {
-    cb.current = { onFatal, onPlaying, onAutoplayBlocked, onCaptionsAvailable, muted, paused, captions };
+    cb.current = { onFatal, onPlaying, onAutoplayBlocked, onCaptionsAvailable, muted, ducked, paused, captions };
   });
 
   // Attach the source (native or hls.js), plus a stall watchdog.
@@ -83,6 +88,7 @@ export function HlsPlayer({
 
     const tryPlay = () => {
       video.muted = cb.current.muted;
+      video.volume = cb.current.ducked ? DUCKED_VOLUME : 1;
       if (cb.current.paused) return;
       video.play().catch((err: unknown) => {
         if (disposed) return;
@@ -218,6 +224,12 @@ export function HlsPlayer({
     video.muted = muted;
     if (!muted && video.paused && !cb.current.paused) video.play().catch(() => {});
   }, [muted]);
+
+  // Duck the audio while voice control listens, then restore it.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video) video.volume = ducked ? DUCKED_VOLUME : 1;
+  }, [ducked]);
 
   // Pause/resume. A live stream paused past its DVR window resumes at the live edge.
   useEffect(() => {

@@ -60,3 +60,18 @@ export const ChevronUpIcon = (p: IconProps) => (
     <path d="m18 15-6-6-6 6" />
   </Svg>
 );
+
+export const MicIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
+    <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v3" />
+  </Svg>
+);
+
+export const MicOffIcon = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M15 9.3V5a3 3 0 0 0-5.7-1.3M9 9v3a3 3 0 0 0 5.1 2.1" />
+    <path d="M19 10v2c0 .4 0 .8-.1 1.2M5 10v2a7 7 0 0 0 12 5M12 19v3" />
+    <path d="m2 2 20 20" />
+  </Svg>
+);

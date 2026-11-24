@@ -13,6 +13,8 @@ interface StreamPlayerProps {
   /** Ordered candidates, primary first. Defaults to stream.sources. */
   sources?: EmbedSource[];
   muted: boolean;
+  /** Main player only: play very quietly (voice control is listening for a command). */
+  ducked?: boolean;
   /** Main player only: user paused playback. Provider embeds can't be paused from here. */
   paused?: boolean;
   /** Main player only: show closed captions where the source supports it. */
@@ -45,6 +47,7 @@ export function StreamPlayer({
   stream,
   sources = stream.sources,
   muted,
+  ducked = false,
   paused = false,
   captions = false,
   liveSeq = 0,
@@ -112,6 +115,7 @@ export function StreamPlayer({
         key={`${stream.id}:${index}`}
         url={source.url}
         muted={muted}
+        ducked={ducked}
         paused={paused}
         captions={captions}
         liveSeq={liveSeq}
@@ -128,6 +132,7 @@ export function StreamPlayer({
         channelId={source.channelId}
         videoId={source.videoId}
         muted={muted}
+        ducked={ducked}
         paused={paused}
         captions={captions}
         liveSeq={liveSeq}

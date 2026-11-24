@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import type { ProviderId, ResolvedStream, StreamCatalog } from "@/lib/streams/types";
 import { AppHeader } from "./AppHeader";
-import { MainStage, type SwipeDirection } from "./MainStage";
+import { MainStage, type SwipeDirection, type VoiceUi } from "./MainStage";
 import { PipStack } from "./PipStack";
 import { initialPlayerState, loadSavedState, playerReducer, saveState } from "./player-state";
 import { StreamSelector } from "./StreamSelector";
 import { useIdle } from "./use-idle";
 import { useStreamCatalog } from "./use-stream-catalog";
+import { useVoiceCommands } from "./use-voice-commands";
+import type { VoiceCommand } from "./voice-phrases";
 
 const IDLE_MS = 3000;
 
@@ -67,16 +69,21 @@ export function LiveTvApp() {
   // One toggle shows or hides the whole PiP stack; hidden tiles unmount their players.
   const togglePip = useCallback(() => dispatch({ type: "togglePip" }), []);
 
-  // Swipe right → next stream in the lineup, left → previous; both wrap around (see reducer).
-  const swipe = useCallback(
-    (direction: SwipeDirection) => {
-      const target = direction === "right" ? player.pip[0] : player.pip[player.pip.length - 1];
+  // Step through the lineup; both directions wrap around (see reducer).
+  const step = useCallback(
+    (direction: "next" | "previous") => {
+      const target = direction === "next" ? player.pip[0] : player.pip[player.pip.length - 1];
       if (!target) return;
-      dispatch({ type: direction === "right" ? "next" : "previous" });
+      dispatch({ type: direction });
       const s = streamsById.get(target);
       if (s) setTabOverride(s.providerId);
     },
     [player.pip, streamsById],
+  );
+  // Swipe right → next stream in the lineup, left → previous.
+  const swipe = useCallback(
+    (direction: SwipeDirection) => step(direction === "right" ? "next" : "previous"),
+    [step],
   );
 
   // Tap pauses/resumes the main stream. Keyed by stream id so a new main stream always plays live.
@@ -86,22 +93,60 @@ export function LiveTvApp() {
   const [liveSeq, setLiveSeq] = useState(0);
   const paused = !!player.activeId && pausedId === player.activeId;
   const behindLive = !paused && !!player.activeId && behindId === player.activeId;
-  const togglePause = useCallback(() => {
-    const id = player.activeId;
-    if (!id) return;
-    if (pausedId === id) {
-      setPausedId(null);
-      setBehindId(id);
-    } else {
-      setPausedId(id);
-    }
-  }, [player.activeId, pausedId]);
+  const setPaused = useCallback(
+    (next: boolean) => {
+      const id = player.activeId;
+      if (!id) return;
+      if (next) {
+        setPausedId(id);
+      } else if (pausedId === id) {
+        setPausedId(null);
+        setBehindId(id);
+      }
+    },
+    [player.activeId, pausedId],
+  );
+  const togglePause = useCallback(() => setPaused(!paused), [setPaused, paused]);
   const goLive = useCallback(() => {
     setPausedId(null);
     setBehindId(null);
     setLiveSeq((n) => n + 1);
   }, []);
   const toggleCaptions = useCallback(() => dispatch({ type: "toggleCaptions" }), []);
+
+  // Hands-free control: "Hey TV" / "Hey News" opens a short window for one spoken command.
+  const runVoiceCommand = useCallback(
+    (command: VoiceCommand) => {
+      switch (command) {
+        case "next":
+        case "previous":
+          step(command);
+          break;
+        case "pause":
+          setPaused(true);
+          break;
+        case "resume":
+          setPaused(false);
+          break;
+        case "resumeLive":
+          goLive();
+          break;
+      }
+    },
+    [step, setPaused, goLive],
+  );
+  const setVoice = useCallback((on: boolean) => dispatch({ type: "setVoice", on }), []);
+  // Recognition can't run (no microphone, permission denied): disarm so the control reads right.
+  const onVoiceUnavailable = useCallback(() => setVoice(false), [setVoice]);
+  const voiceState = useVoiceCommands({
+    enabled: player.voice,
+    onCommand: runVoiceCommand,
+    onUnavailable: onVoiceUnavailable,
+  });
+  const voice: VoiceUi = useMemo(
+    () => ({ ...voiceState, enabled: player.voice, onToggle: () => setVoice(!player.voice) }),
+    [voiceState, player.voice, setVoice],
+  );
   const toggleMute = useCallback(() => setAudioOn((on) => !on), []);
   const onAutoplayBlocked = useCallback(() => setAudioOn(false), []);
 
@@ -118,7 +163,8 @@ export function LiveTvApp() {
   );
 
   // Clean video: chrome fades after a few idle seconds while a stream plays and the panel is shut.
-  const idle = useIdle(IDLE_MS, !!active && !panelOpen && !paused);
+  // While a command window is open the controls stay up, so the mic state is visible.
+  const idle = useIdle(IDLE_MS, !!active && !panelOpen && !paused && !voice.listening);
 
   return (
     <div className={`fixed top-0 left-0 h-dvh w-dvw overflow-hidden bg-black text-zinc-100 ${idle ? "cursor-none" : ""}`}>
@@ -163,6 +209,7 @@ export function LiveTvApp() {
           liveSeq={liveSeq}
           captions={player.captions}
           onToggleCaptions={toggleCaptions}
+          voice={voice}
           onTogglePause={togglePause}
           onSwipe={swipe}
         />

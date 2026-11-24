@@ -6,6 +6,8 @@ interface YouTubePlayerProps {
   channelId: string;
   videoId?: string;
   muted: boolean;
+  /** Play very quietly (voice control is listening for a command). */
+  ducked?: boolean;
   /** User paused playback (tap on the main player). */
   paused?: boolean;
   /** Show closed captions (toggles the player's captions module). */
@@ -18,6 +20,9 @@ interface YouTubePlayerProps {
   /** PiP tiles are not interactive: taps go to the tile's overlay button. */
   interactive: boolean;
 }
+
+/** Volume (0-100) while voice control waits for a command, so the TV doesn't drown out the user. */
+const DUCKED_VOLUME = 8;
 
 const NOCOOKIE_ORIGIN = "https://www.youtube-nocookie.com";
 const YOUTUBE_ORIGIN = "https://www.youtube.com";
@@ -52,6 +57,7 @@ export function YouTubePlayer({
   channelId,
   videoId,
   muted,
+  ducked = false,
   paused = false,
   captions = false,
   liveSeq = 0,
@@ -62,9 +68,9 @@ export function YouTubePlayer({
 }: YouTubePlayerProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { src, origin } = youTubeEmbedUrl(channelId, videoId);
-  const cb = useRef({ onFatal, onPlaying, muted, paused, captions });
+  const cb = useRef({ onFatal, onPlaying, muted, ducked, paused, captions });
   useEffect(() => {
-    cb.current = { onFatal, onPlaying, muted, paused, captions };
+    cb.current = { onFatal, onPlaying, muted, ducked, paused, captions };
   });
   // Latest DVR length reported by the player; seeking to it lands on the live edge.
   const durationRef = useRef<number | null>(null);
@@ -81,6 +87,12 @@ export function YouTubePlayer({
       post({ event: "command", func: isMuted ? "mute" : "unMute", args: [] });
       if (!isMuted && !cb.current.paused) post({ event: "command", func: "playVideo", args: [] });
     },
+    [post],
+  );
+
+  const applyVolume = useCallback(
+    (isDucked: boolean) =>
+      post({ event: "command", func: "setVolume", args: [isDucked ? DUCKED_VOLUME : 100] }),
     [post],
   );
 
@@ -125,15 +137,21 @@ export function YouTubePlayer({
       window.setTimeout(() => {
         post({ event: "listening", id: title, channel: "widget" });
         applyMute(cb.current.muted);
+        applyVolume(cb.current.ducked);
         applyCaptions(cb.current.captions);
         if (cb.current.paused) post({ event: "command", func: "pauseVideo", args: [] });
       }, delay);
     }
-  }, [post, applyMute, applyCaptions, title]);
+  }, [post, applyMute, applyVolume, applyCaptions, title]);
 
   useEffect(() => {
     applyMute(muted);
   }, [muted, applyMute]);
+
+  // Duck the audio while voice control listens, then restore it.
+  useEffect(() => {
+    applyVolume(ducked);
+  }, [ducked, applyVolume]);
 
   useEffect(() => {
     post({ event: "command", func: paused ? "pauseVideo" : "playVideo", args: [] });

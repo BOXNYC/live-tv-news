@@ -4,9 +4,25 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { EmbedSource, ResolvedStream } from "@/lib/streams/types";
 import { SOURCE_LABEL, StreamPlayer, type OverlayInfo } from "./StreamPlayer";
-import { ExpandIcon, PlayIcon, ShrinkIcon, SpeakerIcon, SpeakerOffIcon } from "./icons";
+import { ExpandIcon, MicIcon, MicOffIcon, PlayIcon, ShrinkIcon, SpeakerIcon, SpeakerOffIcon } from "./icons";
+import { COMMAND_LABEL, COMMAND_ORDER, type VoiceCommand } from "./voice-phrases";
 
 export type SwipeDirection = "left" | "right";
+
+/** Voice control, as the stage needs to show it. Produced by `useVoiceCommands`. */
+export interface VoiceUi {
+  /** The browser can do speech recognition at all; the mic control is hidden when it can't. */
+  supported: boolean;
+  /** Armed: listening for the wake word. */
+  enabled: boolean;
+  /** The wake word was heard: a command window is open and the audio is ducked. */
+  listening: boolean;
+  lastCommand: VoiceCommand | null;
+  error: string | null;
+  onToggle: () => void;
+}
+
+const COMMAND_HINT = COMMAND_ORDER.map((c) => COMMAND_LABEL[c]).join(" · ");
 
 const SWIPE_MIN_PX = 50;
 const TAP_MAX_PX = 10;
@@ -33,6 +49,7 @@ interface MainStageProps {
   liveSeq: number;
   captions: boolean;
   onToggleCaptions: () => void;
+  voice: VoiceUi;
   /** Tap on the video. */
   onTogglePause: () => void;
   /** Horizontal swipe on the video. */
@@ -78,6 +95,49 @@ function GestureLayer({ onTap, onSwipe }: { onTap: () => void; onSwipe: (d: Swip
   );
 }
 
+/**
+ * Voice-control readout under the header: what was just heard, what we're waiting for, or why
+ * voice control stopped. Non-interactive, so it never gets in the way of the video.
+ */
+function VoiceBanner({ voice }: { voice: VoiceUi }) {
+  const { listening, lastCommand, error } = voice;
+  if (!listening && !lastCommand && !error) return null;
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top)+var(--bar-h)+0.5rem)] flex justify-center px-3">
+      <p
+        role="status"
+        aria-live="polite"
+        className={`flex max-w-full items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold shadow-lg ring-1 backdrop-blur ${
+          error
+            ? // Fades itself out: nothing clears it until voice control is switched on again.
+              "animate-fade-out-late bg-amber-500/90 text-black ring-black/20"
+            : "bg-black/70 text-white ring-white/25"
+        }`}
+      >
+        {lastCommand ? (
+          <>
+            <MicIcon className="h-4 w-4 shrink-0 text-red-400" />
+            <span className="truncate">{COMMAND_LABEL[lastCommand]}</span>
+          </>
+        ) : listening ? (
+          <>
+            <span
+              className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-red-500 motion-reduce:animate-none"
+              aria-hidden
+            />
+            <span className="truncate">
+              Listening…{" "}
+              <span className="hidden font-normal text-zinc-300 sm:inline">{COMMAND_HINT}</span>
+            </span>
+          </>
+        ) : (
+          <span className="truncate">{error}</span>
+        )}
+      </p>
+    </div>
+  );
+}
+
 type WebkitVideo = HTMLVideoElement & { webkitEnterFullscreen?: () => void };
 
 export function MainStage({
@@ -95,6 +155,7 @@ export function MainStage({
   liveSeq,
   captions,
   onToggleCaptions,
+  voice,
   onTogglePause,
   onSwipe,
 }: MainStageProps) {
@@ -162,6 +223,7 @@ export function MainStage({
               </button>
             </div>
           )}
+          <VoiceBanner voice={voice} />
           <div
             data-pip={hasPip}
             data-pip-tab={hasPipTab}
@@ -216,6 +278,28 @@ export function MainStage({
               )}
             </div>
             <div className="flex shrink-0 gap-2">
+              {voice.supported && (
+                <button
+                  type="button"
+                  onClick={voice.onToggle}
+                  aria-pressed={voice.enabled}
+                  aria-label="Voice control"
+                  title={
+                    voice.enabled
+                      ? `Voice control on — say \u201cHey TV\u201d, then: ${COMMAND_HINT}`
+                      : "Turn voice control on"
+                  }
+                  className={`${interactive} rounded-full p-2 ring-1 transition focus-visible:outline-2 focus-visible:outline-red-500 ${
+                    voice.enabled
+                      ? voice.listening
+                        ? "animate-pulse bg-red-600 text-white ring-red-300 motion-reduce:animate-none"
+                        : "bg-white text-black ring-white hover:bg-zinc-200"
+                      : "bg-black/50 text-white ring-white/20 hover:bg-black/70"
+                  }`}
+                >
+                  {voice.enabled ? <MicIcon className="h-5 w-5" /> : <MicOffIcon className="h-5 w-5" />}
+                </button>
+              )}
               {captionsAvailable && (
                 <button
                   type="button"
@@ -272,6 +356,7 @@ export function MainStage({
       onGoLive,
       captions,
       onToggleCaptions,
+      voice,
       onTogglePause,
       onSwipe,
     ],
@@ -287,6 +372,7 @@ export function MainStage({
               key={stream.id}
               stream={stream}
               muted={muted}
+              ducked={voice.listening}
               paused={paused}
               captions={captions}
               liveSeq={liveSeq}

@@ -13,6 +13,8 @@ export interface PlayerState {
   pipCollapsed: boolean;
   /** Closed captions on the main player (a user preference, remembered between visits). */
   captions: boolean;
+  /** Voice control armed: listening for the wake word (a remembered user preference). */
+  voice: boolean;
   /** True once saved state (or the default stream) has been applied after the catalog loaded. */
   hydrated: boolean;
 }
@@ -28,6 +30,8 @@ export type PlayerAction =
   | { type: "togglePip" }
   /** Turn closed captions on or off. */
   | { type: "toggleCaptions" }
+  /** Arm or disarm voice control (wake word + spoken commands). */
+  | { type: "setVoice"; on: boolean }
   /**
    * Swipe through the lineup [active, ...pip] as a loop: "next" plays pip[0] and sends the current
    * stream to the end; "previous" plays the last PiP and puts the current stream first. The cyclic
@@ -52,6 +56,7 @@ export interface SavedState {
   pip: string[];
   pipCollapsed: boolean;
   captions: boolean;
+  voice: boolean;
 }
 
 export const initialPlayerState: PlayerState = {
@@ -59,6 +64,7 @@ export const initialPlayerState: PlayerState = {
   pip: [],
   pipCollapsed: false,
   captions: false,
+  voice: false,
   hydrated: false,
 };
 
@@ -82,6 +88,8 @@ export function playerReducer(state: PlayerState, action: PlayerAction): PlayerS
       return { ...state, pipCollapsed: !state.pipCollapsed };
     case "toggleCaptions":
       return { ...state, captions: !state.captions };
+    case "setVoice":
+      return state.voice === action.on ? state : { ...state, voice: action.on };
     case "next": {
       if (!state.activeId || state.pip.length === 0) return state;
       const [first, ...rest] = state.pip;
@@ -113,6 +121,7 @@ export function playerReducer(state: PlayerState, action: PlayerAction): PlayerS
         pip: pip.slice(0, PIP_CAP),
         pipCollapsed: action.saved?.pipCollapsed ?? false,
         captions: action.saved?.captions ?? false,
+        voice: action.saved?.voice ?? false,
         hydrated: true,
       };
     }
@@ -127,17 +136,19 @@ export function parseSavedState(raw: string | null): SavedState | null {
   try {
     const data: unknown = JSON.parse(raw);
     if (!data || typeof data !== "object") return null;
-    const { activeId, pip, pipCollapsed, captions } = data as {
+    const { activeId, pip, pipCollapsed, captions, voice } = data as {
       activeId?: unknown;
       pip?: unknown;
       pipCollapsed?: unknown;
       captions?: unknown;
+      voice?: unknown;
     };
     return {
       activeId: typeof activeId === "string" ? activeId : null,
       pip: Array.isArray(pip) ? pip.filter((p): p is string => typeof p === "string") : [],
       pipCollapsed: pipCollapsed === true,
       captions: captions === true,
+      voice: voice === true,
     };
   } catch {
     return null;
@@ -161,6 +172,7 @@ export function saveState(state: SavedState) {
         pip: state.pip,
         pipCollapsed: state.pipCollapsed,
         captions: state.captions,
+        voice: state.voice,
       } satisfies SavedState),
     );
   } catch {
