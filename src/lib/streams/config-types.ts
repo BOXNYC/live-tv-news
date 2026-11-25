@@ -7,7 +7,15 @@ import type { EmbedSource, ProviderId } from "./types";
 /** Params accepted by each server-side resolver, keyed by resolver name. */
 export interface ResolverParamsMap {
   /** youtube.com/channel/<channelId>/live → current live video id (or live_stream embed). */
-  "youtube-live": { channelId: string };
+  "youtube-live": {
+    channelId: string;
+    /**
+     * When true, resolve to nothing unless the channel is live right now, so the source is
+     * dropped (or replaced by its `fallback`) instead of emitting an offline live_stream embed.
+     * Use it for channels that are only live some of the time and have a working later source.
+     */
+    requireLive?: boolean;
+  };
   /** NBC News embedded-video page → linear-stream playlist → HLS publicUrl for an MPX id. */
   "nbc-fast-playlist": {
     mpxId: string;

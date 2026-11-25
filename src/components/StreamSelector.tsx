@@ -31,7 +31,11 @@ export function StreamSelector({
 
   return (
     <div className="flex flex-col gap-3">
-      <div role="tablist" aria-label="Networks" className="flex gap-1 rounded-xl bg-white/5 p-1 ring-1 ring-white/10">
+      <div
+        role="tablist"
+        aria-label="Networks"
+        className="flex gap-1 overflow-x-auto rounded-xl bg-white/5 p-1 ring-1 ring-white/10"
+      >
         {providers.map((p) => {
           const selected = p.id === provider?.id;
           const live = p.streams.some((s) => s.id === activeId);

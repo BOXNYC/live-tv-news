@@ -14,7 +14,7 @@ URLs at request time.
 
 | Path | What it is |
 | --- | --- |
-| `src/config/streams/{nbc,abc,cbs}.ts` | One `ProviderConfig` per provider — **this is what you edit** |
+| `src/config/streams/{nbc,abc,cbs,newsnation}.ts` | One `ProviderConfig` per provider — **this is what you edit** |
 | `src/config/streams/index.ts` | Provider list, in tab order |
 | `src/lib/streams/config-types.ts` | Types for configs (`ProviderConfig`, `StreamConfig`, `SourceConfig`, resolver params) |
 | `src/lib/streams/validate.ts` | Runtime validator (hand-written type guards) |
@@ -77,7 +77,8 @@ version, updatedAt, changelog, streams) skips the whole provider. Check the serv
 - The route is dynamic (`await connection()`, because `cacheComponents` is on) and sends
   `Cache-Control: public, max-age=30, s-maxage=120, stale-while-revalidate=600`.
 - Response header `X-Stream-Resolve-Stats` shows per provider how many sources were `resolved`
-  / `fallback` / `static` / `skipped` — the quickest health check.
+  / `fallback` / `static` / `skipped` — the quickest health check. (One exception: NewsNation's
+  YouTube source uses `requireLive`, so `skipped=1` there just means the channel is dark.)
 - `STREAMS_OFFLINE=1 npm run dev` serves `getStaticCatalog()` (fallbacks only, no network).
 
 ## Versioning — when a provider changes something
@@ -109,6 +110,15 @@ Bump per provider: an NBC fix doesn't touch the ABC/CBS versions.
 4. Use `enabled: false` (with a comment why) for streams you want to keep documented but not shown.
 5. Bump the provider `version` + changelog as above.
 
+## Adding a provider
+
+A new network is a shared-contract change: add its id to `ProviderId` in `src/lib/streams/types.ts`
+and to `PROVIDER_IDS` in `validate.ts`, add the config file to `src/config/streams/index.ts` (tab
+order), and add a logo to `LOGOS` in `src/components/ProviderBadge.tsx` plus the SVG in
+`public/logos/` — `LOGOS` is keyed by `ProviderId`, so TypeScript will not compile without it.
+Mark a logo `wide: true` if it is a long wordmark, so it renders at a height that keeps every
+network chip about the same width.
+
 ## Adding a resolver
 
 Create `src/lib/streams/resolvers/<name>.ts` exporting a `ResolverDefinition` (`validateParams`
@@ -137,6 +147,17 @@ never assume shape, validate URLs with `toHttpsUrl`, return `null` rather than g
 | ABC News Special Coverage (**disabled**) | `abc-itemfeed` id `abc_live10` + embed iframe | `abc_live<N>` slots rotate and are usually idle; pick the right slot during breaking news. |
 | ABC7 New York (**disabled**) | `abc7ny.com/video/embed?pid=11064922` iframe | Unverified playback. |
 
+### NewsNation (`newsnation.ts`)
+
+| Streams | Method | Known fragility |
+| --- | --- | --- |
+| NewsNation Live | `youtube-live` UCCjG8NtOig0USdrT5D1FpxQ with `requireLive: true` (source dropped when the channel is dark) → `newsnationnow.com/nxs-video/vid-anvato-adstP5LOdMYydk9w/embed/` iframe (ads, not controllable) | The Anvato live id can be rotated. `www.newsnationnow.com` pages are behind PerimeterX (px-captcha 403 for non-browsers), so **a scraping resolver is not viable** — the `/nxs-video/…/embed/` path is the exception that is not protected, and it sends no X-Frame-Options/CSP. |
+
+No direct HLS: the feed is an Anvato/Lura asset and `tkx.mp.lura.live` rejects the manifest
+without a per-session signed `anvstk` token, so there is nothing stable to put in our `<video>`.
+That makes this the one provider whose primary source is a provider iframe most of the time —
+no PiP audio, no mute/pause/captions/voice control, just the network's own player.
+
 ### CBS (`cbs.ts`)
 
 No player-only embed exists (framing `cbsnews.com/live` shows the whole site), so there are no iframe sources.
@@ -153,3 +174,7 @@ No player-only embed exists (framing `cbsnews.com/live` shows the whole site), s
 - **CBS:** `curl -s https://www.cbsnews.com/video/xhr/collection/component/live-channels/ | jq '.items[] | {slug, v: .items[0].video, v2: .items[0].video2}'`.
 - **ABC:** `curl -s 'https://abcnews.com/video/itemfeed?id=41463246'` and look at `media-content`.
 - **YouTube:** `https://www.youtube.com/channel/<UC…>/live` — canonical `watch?v=` when live.
+- **NewsNation:** `www.newsnationnow.com/live/` 403s for non-browsers; the same page is served by
+  `digital-release.newsnationnow.com/live/`, where the player config sits in the
+  `data-nexstar-video` attribute (`{"id":"…","attributes":{"type":"live","has_auth":false}}`).
+  The embed path is `www.newsnationnow.com/nxs-video/vid-anvato-<id>/embed/`.

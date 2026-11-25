@@ -3,7 +3,9 @@
 // When a channel is live, YouTube serves the watch page for the live video and its
 // <link rel="canonical"> points at https://www.youtube.com/watch?v=<id>. When it is not live,
 // the canonical points back at the channel. We return the video id when we find one that is
-// live now, else the channel-only source (the UI then uses the live_stream?channel= embed).
+// live now, else the channel-only source (the UI then uses the live_stream?channel= embed) —
+// or, with params.requireLive, nothing at all, so a channel that is dark right now gives way
+// to the next source instead of showing an offline embed.
 
 import { cached, fetchText, isRecord, TTL } from "../http";
 import { isYouTubeChannelId } from "../validate-primitives";
@@ -45,9 +47,13 @@ export const youtubeLive: ResolverDefinition<"youtube-live"> = {
   name: "youtube-live",
   validateParams(raw) {
     if (!isRecord(raw)) return ["params must be an object"];
-    return isYouTubeChannelId(raw.channelId) ? [] : ["params.channelId must be a YouTube channel id (UC…)"];
+    const errs: string[] = [];
+    if (!isYouTubeChannelId(raw.channelId)) errs.push("params.channelId must be a YouTube channel id (UC…)");
+    if (raw.requireLive !== undefined && typeof raw.requireLive !== "boolean")
+      errs.push("params.requireLive must be a boolean");
+    return errs;
   },
-  async resolve({ channelId }) {
+  async resolve({ channelId, requireLive = false }) {
     const videoId = await cached(`youtube-live:${channelId}`, TTL.youtube, async () => {
       const html = await fetchText(`https://www.youtube.com/channel/${encodeURIComponent(channelId)}/live`, {
         // Skip the EU consent interstitial if the server happens to be geolocated there.
@@ -56,6 +62,7 @@ export const youtubeLive: ResolverDefinition<"youtube-live"> = {
       // Cache "not live" as a successful lookup (empty string) so it gets the normal TTL.
       return parseYouTubeLivePage(html) ?? "";
     });
-    return videoId ? { type: "youtube", channelId, videoId } : { type: "youtube", channelId };
+    if (videoId) return { type: "youtube", channelId, videoId };
+    return requireLive ? null : { type: "youtube", channelId };
   },
 };

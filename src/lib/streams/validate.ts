@@ -9,7 +9,7 @@ import { isResolverName, resolvers } from "./resolvers";
 import type { ProviderId } from "./types";
 import { embedSourceErrors, isNonEmptyString, isSlug } from "./validate-primitives";
 
-const PROVIDER_IDS: readonly ProviderId[] = ["nbc", "abc", "cbs"];
+const PROVIDER_IDS: readonly ProviderId[] = ["nbc", "abc", "cbs", "newsnation"];
 const VERSION_RE = /^\d{4}\.\d{2}\.\d{2}-\d+$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}(?:T[\d:.]+(?:Z|[+-]\d{2}:\d{2})?)?$/;
 

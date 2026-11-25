@@ -1,7 +1,7 @@
 // Shared contract between the stream config/resolver layer (src/lib/streams, src/config/streams,
 // src/app/api/streams) and the player UI (src/components, src/app/page.tsx).
 
-export type ProviderId = "nbc" | "abc" | "cbs";
+export type ProviderId = "nbc" | "abc" | "cbs" | "newsnation";
 
 /** A single, fully resolved way to play a stream. */
 export type EmbedSource =

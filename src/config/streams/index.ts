@@ -5,5 +5,6 @@ import type { ProviderConfig } from "@/lib/streams/config-types";
 import { abcConfig } from "./abc";
 import { cbsConfig } from "./cbs";
 import { nbcConfig } from "./nbc";
+import { newsNationConfig } from "./newsnation";
 
-export const providerConfigs: readonly ProviderConfig[] = [nbcConfig, abcConfig, cbsConfig];
+export const providerConfigs: readonly ProviderConfig[] = [nbcConfig, abcConfig, cbsConfig, newsNationConfig];

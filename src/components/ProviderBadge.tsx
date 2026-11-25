@@ -3,20 +3,24 @@ import type { ProviderId } from "@/lib/streams/types";
 
 /*
  * Network logos live in /public/logos. They are the official marks from Wikimedia Commons
- * (File:NBC_logo.svg, File:American_Broadcasting_Company_Logo.svg, File:CBS_logo.svg),
+ * (File:NBC_logo.svg, File:American_Broadcasting_Company_Logo.svg, File:CBS_logo.svg,
+ * File:NewsNation_logo.svg),
  * stripped of editor metadata, and are used only to identify each network (nominative use).
  * They render full-colour on a small white chip so they stay legible over dark video.
  */
-const LOGOS: Record<ProviderId, { name: string; src: string; width: number; height: number }> = {
+const LOGOS: Record<ProviderId, { name: string; src: string; width: number; height: number; wide?: true }> = {
   nbc: { name: "NBC", src: "/logos/nbc.svg", width: 567, height: 559 },
   abc: { name: "ABC", src: "/logos/abc.svg", width: 202, height: 202 },
   cbs: { name: "CBS", src: "/logos/cbs.svg", width: 240, height: 70 },
+  // A long wordmark: at the shared heights it would be ~2.5x the width of any other chip and
+  // push the network tabs off a phone screen, so it renders at the `wide` heights below.
+  newsnation: { name: "NewsNation", src: "/logos/newsnation.svg", width: 1500, height: 269, wide: true },
 };
 
 const SIZES = {
-  sm: { chip: "rounded px-1 py-0.5", logo: "h-3" },
-  md: { chip: "rounded-md px-1.5 py-0.5", logo: "h-4" },
-  lg: { chip: "rounded-md px-2 py-1", logo: "h-6" },
+  sm: { chip: "rounded px-1 py-0.5", logo: "h-3", wideLogo: "h-2" },
+  md: { chip: "rounded-md px-1.5 py-0.5", logo: "h-4", wideLogo: "h-2.5" },
+  lg: { chip: "rounded-md px-2 py-1", logo: "h-6", wideLogo: "h-3.5" },
 } as const;
 
 export function ProviderBadge({
@@ -42,7 +46,7 @@ export function ProviderBadge({
         height={logo.height}
         unoptimized
         draggable={false}
-        className={`${s.logo} w-auto`}
+        className={`${logo.wide ? s.wideLogo : s.logo} w-auto`}
       />
     </span>
   );
